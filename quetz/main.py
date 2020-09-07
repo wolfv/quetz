@@ -37,36 +37,44 @@ from quetz import (
 )
 from quetz.config import Config
 from quetz.dao import Dao
-from quetz.database import get_session as get_db_session
 
 from .condainfo import CondaInfo
 
 app = FastAPI()
 
-config = Config()
-auth_github.register(config)
+if "QUETZ_IS_TEST" in os.environ:
+    from quetz.tests import conftest
+    config = conftest.get_test_config()
+    app.add_middleware(
+        SessionMiddleware,
+        secret_key=config.session_secret,
+        https_only=config.session_https_only,
+    )
+else:
+    config = Config()
 
-app.add_middleware(
-    SessionMiddleware,
-    secret_key=config.session_secret,
-    https_only=config.session_https_only,
-)
+    if config.configured_section('github'):
+        auth_github.register(config)
+
+    app.add_middleware(
+        SessionMiddleware,
+        secret_key=config.session_secret,
+        https_only=config.session_https_only,
+    )
+
+    pkgstore = config.get_package_store()
+
+    app.include_router(auth_github.router)
+
+    if config.configured_section('google'):
+        auth_google.register(config)
+        app.include_router(auth_google.router)
 
 api_router = APIRouter()
 
-pkgstore = config.get_package_store()
-
-app.include_router(auth_github.router)
-
-if config.configured_section('google'):
-    auth_google.register(config)
-    app.include_router(auth_google.router)
-
 # Dependency injection
-
-
 def get_db():
-    db = get_db_session(config.sqlalchemy_database_url)
+    db = config.get_db_session()
     try:
         yield db
     finally:
@@ -222,10 +230,10 @@ def get_user(username: str, dao: Dao = Depends(get_dao)):
 @api_router.get(
     '/channels', response_model=List[rest_models.Channel], tags=['channels']
 )
-def get_channels(dao: Dao = Depends(get_dao), q: str = None):
+def get_channels(dao: Dao = Depends(get_dao), q: str = None, auth: authorization.Rules = Depends(get_rules)):
     """List all channels"""
-
-    return dao.get_channels(0, -1, q)
+    user_id = auth.get_user()
+    return dao.get_channels(0, -1, q, user_id)
 
 
 @api_router.get(
@@ -234,11 +242,11 @@ def get_channels(dao: Dao = Depends(get_dao), q: str = None):
     tags=['channels'],
 )
 def get_paginated_channels(
-    dao: Dao = Depends(get_dao), skip: int = 0, limit: int = 10, q: str = None
+    dao: Dao = Depends(get_dao), skip: int = 0, limit: int = 10, q: str = None, auth: authorization.Rules = Depends(get_rules)
 ):
     """List all channels, as a paginated response"""
-
-    return dao.get_channels(skip, limit, q)
+    user_id = auth.get_user()
+    return dao.get_channels(skip, limit, q, user_id)
 
 
 @api_router.get(
@@ -460,7 +468,6 @@ def search(
     auth: authorization.Rules = Depends(get_rules),
 ):
     user_id = auth.get_user()
-    print(user_id)
     return dao.search_packages(query, user_id)
 
 

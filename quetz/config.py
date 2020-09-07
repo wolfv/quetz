@@ -12,6 +12,7 @@ import toml
 
 from quetz import pkgstores
 from quetz.errors import ConfigError
+from quetz.database import get_session as get_db_session
 
 _filename = "config.toml"
 _env_prefix = "QUETZ_"
@@ -52,7 +53,7 @@ class ConfigSection(NamedTuple):
 class Config:
     _config_map = (
         ConfigSection(
-            "github", [ConfigEntry("client_id", str), ConfigEntry("client_secret", str)]
+            "github", [ConfigEntry("client_id", str, default=""), ConfigEntry("client_secret", str, default="")]
         ),
         ConfigSection("sqlalchemy", [ConfigEntry("database_url", str)]),
         ConfigSection(
@@ -79,7 +80,7 @@ class Config:
     _config_dirs = [_site_dir, _user_dir]
     _config_files = [os.path.join(d, _filename) for d in _config_dirs]
 
-    def __init__(self, deployment_config: str = None) -> NoReturn:
+    def __init__(self, deployment_config_file: str = None, config: Dict = {}, db_session = None) -> NoReturn:
         """Load configurations from various places.
 
         Order of importance for configuration is:
@@ -88,23 +89,30 @@ class Config:
 
         Parameters
         ----------
-        deployment_config : str, optional
+        deployment_config_file : str, optional
             The configuration stored at deployment level
+        config : Dict, optional
+            The configuration to apply (overrides deployment_config_file)
         """
 
-        self.config = {}
-        config_file_env = os.getenv(f"{_env_prefix}{_env_config_file}")
+        self.db_session = db_session
 
-        deployment_config_files = []
-        for f in (deployment_config, config_file_env):
-            if f and os.path.isfile(f):
-                deployment_config_files.append(f)
+        if config:
+            self.config = config
+        else:
+            self.config = {}
+            config_file_env = os.getenv(f"{_env_prefix}{_env_config_file}")
 
-        # In order, get configuration from:
-        # _site_dir, _user_dir, deployment_config, config_file_env
-        for f in self._config_files + deployment_config_files:
-            if os.path.isfile(f):
-                self.config.update(self._read_config(f))
+            deployment_config_files = []
+            for f in (deployment_config_file, config_file_env):
+                if f and os.path.isfile(f):
+                    deployment_config_files.append(f)
+
+            # In order, get configuration from:
+            # _site_dir, _user_dir, deployment_config, config_file_env
+            for f in self._config_files + deployment_config_files:
+                if os.path.isfile(f):
+                    self.config.update(self._read_config(f))
 
         def set_entry_attr(entry, section=""):
             env_var_value = os.getenv(entry.env_var(section))
@@ -215,6 +223,12 @@ class Config:
 
         return bool(self.config.get(section))
 
+
+    def get_db_session(self):
+        if self.db_session:
+            return self.db_session
+        else:
+            return get_db_session(self.sqlalchemy_database_url)
 
 def create_config(
     client_id: str = "",
