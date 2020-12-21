@@ -45,9 +45,12 @@ def transmutation(package_version: dict, config, pkgstore: PackageStore, dao: Da
             # chunk size 10MB
             shutil.copyfileobj(fh, local_file, 10 * 1024 * 1024)
 
-        fn, out_fn, errors = _convert(local_file_name, ".conda", tmpdirname, force=True)
+        res = _convert(local_file_name, ".conda", tmpdirname, force=True)
+        errors, out_fn = "", ""
+        if res is not None:
+            fn, out_fn, errors = res
 
-        if errors:
+        if res is None or errors:
             logger.error(f"transmutation errors --> {errors}")
             return
 
@@ -58,7 +61,7 @@ def transmutation(package_version: dict, config, pkgstore: PackageStore, dao: Da
         with open(out_fn, 'rb') as f:
             calculate_file_hashes_and_size(info, f)
             f.seek(0)
-            pkgstore.add_package(f, channel, Path(platform) / filename_conda)
+            pkgstore.add_package(f, channel, f"{platform}/{filename_conda}")
 
         version = dao.create_version(
             channel,
@@ -73,6 +76,10 @@ def transmutation(package_version: dict, config, pkgstore: PackageStore, dao: Da
             uploader_id,
             info["size"],
             upsert=True,
+        )
+
+        logger.info(
+            f"Created: {filename_conda} with {info['size']} and {info['sha256']}"
         )
 
         if os.path.exists(out_fn):
