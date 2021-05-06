@@ -1012,6 +1012,7 @@ class Dao:
     def create_user_with_profile(
         self,
         username: str,
+        email: str,
         provider: str,
         identity_id: str,
         name: str,
@@ -1031,7 +1032,7 @@ class Dao:
             raise IntegrityError(f"User {username} exists", "", "")
 
         if not user:
-            user = User(id=uuid.uuid4().bytes, username=username, role=role)
+            user = User(id=uuid.uuid4().bytes, username=username, role=role, email=email)
 
         identity = Identity(
             provider=provider,

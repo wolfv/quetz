@@ -37,6 +37,7 @@ class GoogleAuthenticator(OAuthAuthenticator):
             "id": profile["sub"],
             "name": profile["name"],
             "avatar_url": profile['picture'],
+            "email": profile["email"],
             "login": profile["email"],
         }
         return github_profile

@@ -30,6 +30,7 @@ def create_user_with_identity(
         provider=provider,
         identity_id=profile["id"],
         name=profile["name"],
+        email=profile["email"],
         avatar_url=profile["avatar_url"],
         role=default_role,
         exist_ok=False,

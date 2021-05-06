@@ -46,6 +46,8 @@ class GitlabAuthenticator(OAuthAuthenticator):
             "name": profile["name"],
             "avatar_url": profile['picture'],
             "login": profile["nickname"],
+            # ???
+            "email": profile["email"],
         }
         return gitlab_profile
 

@@ -32,6 +32,7 @@ class GithubAuthenticator(OAuthAuthenticator):
     async def userinfo(self, request, token):
         resp = await self.client.get('user', token=token)
         profile = resp.json()
+        print(profile)
 
         return profile
 
